@@ -11,10 +11,10 @@ tools/bazel run //common:kernel_aarch64_dist -- --destdir="$DIST_DIR"
 ```
 
 The mutable branch names are used only to describe the upstream source line.
-The build itself uses the immutable manifest and superproject commits in
-[`../sources.lock.json`](../sources.lock.json). The superproject resolves every
-project needed by the official manifest, including `kernel/common` and
-`kernel/build`; the workflow confirms those two resolved commits explicitly.
+The build itself fetches the immutable manifest and superproject commits in
+[`../sources.lock.json`](../sources.lock.json). It materializes the
+superproject gitlinks into a regular SHA-pinned manifest before syncing, then
+confirms the resolved `kernel/common` and `kernel/build` commits explicitly.
 
 References:
 
