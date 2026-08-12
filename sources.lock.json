@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "baseline": {
+    "android_release": "Android 14",
+    "manifest_branch": "common-android14-6.1",
+    "kernel_branch": "android14-6.1",
+    "build_target": "//common:kernel_aarch64_dist",
+    "architecture": "aarch64"
+  },
+  "inputs": {
+    "manifest": {
+      "url": "https://android.googlesource.com/kernel/manifest",
+      "commit": "044de8a1852fcf7cba788c633baf538e440f4f82"
+    },
+    "superproject": {
+      "url": "https://android.googlesource.com/kernel/superproject",
+      "commit": "0feb63a159b3eeb681a5bbd1898cd681c362d263"
+    },
+    "kernel_common": {
+      "path": "common",
+      "commit": "39905027d02346e1282db7819bb13215b4bdb8dd"
+    },
+    "kernel_build": {
+      "path": "build/kernel",
+      "commit": "d02d210ea8b8b33622e42f6eeee1eb729567761a"
+    },
+    "repo_tool": {
+      "url": "https://gerrit.googlesource.com/git-repo",
+      "commit": "b85886fa9f5b4e2189cc5b2f40bd0a80459d4c77"
+    }
+  }
+}

@@ -1,0 +1,93 @@
+name: Compile Android 14 GKI (compile-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android14-gki-compile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    name: Compile official Android 14 GKI Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      REPO_JOBS: "2"
+      BAZEL_JOBS: "2"
+      MIN_FREE_GB: "45"
+      MIN_MEMORY_GB: "6"
+    steps:
+      - name: Check out foundation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate workflow inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == 1 and
+            .baseline.android_release == "Android 14" and
+            .baseline.manifest_branch == "common-android14-6.1" and
+            .baseline.kernel_branch == "android14-6.1" and
+            .baseline.build_target == "//common:kernel_aarch64_dist" and
+            (.inputs | .. | strings | select(test("^[0-9a-f]{40}$")) | length == 40)
+          ' sources.lock.json >/dev/null
+          test "$(jq -r '.devices | length' devices.json)" = "0"
+
+      - name: Reclaim ephemeral runner disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          docker image prune --all --force
+          available_gb=$(df --output=avail -BG "$RUNNER_TEMP" | tail -1 | tr -dc '0-9')
+          memory_gb=$(free -g | awk '/^Mem:/ { print $2 }')
+          echo "available disk: ${available_gb} GB"
+          echo "available memory: ${memory_gb} GB"
+          (( available_gb >= MIN_FREE_GB ))
+          (( memory_gb >= MIN_MEMORY_GB ))
+
+      - name: Sync immutable AOSP source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          bash scripts/sync-pinned-aosp.sh \
+            "$RUNNER_TEMP/aosp-kernel" \
+            "$GITHUB_WORKSPACE/sources.lock.json" \
+            "$RUNNER_TEMP/gki-evidence"
+
+      - name: Compile official non-device GKI target
+        shell: bash
+        run: |
+          set -euo pipefail
+          kernel_root="$RUNNER_TEMP/aosp-kernel"
+          dist_dir="$RUNNER_TEMP/gki-dist"
+          evidence_dir="$RUNNER_TEMP/gki-evidence"
+          mkdir -p "$dist_dir" "$evidence_dir"
+          (
+            cd "$kernel_root"
+            tools/bazel run --jobs="$BAZEL_JOBS" //common:kernel_aarch64_dist -- \
+              --destdir="$dist_dir"
+          ) 2>&1 | tee "$evidence_dir/build.log"
+          test -s "$dist_dir/Image"
+          cp "$kernel_root/common/arch/arm64/configs/gki_defconfig" "$evidence_dir/gki_defconfig"
+          sha256sum "$evidence_dir/gki_defconfig" > "$evidence_dir/gki_defconfig.sha256"
+          find "$dist_dir" -maxdepth 1 -type f -printf '%f\t%s\n' | sort > "$evidence_dir/dist-files.tsv"
+          mkdir -p "$RUNNER_TEMP/gki-published"
+          install -m 0644 "$dist_dir/Image" "$RUNNER_TEMP/gki-published/Image"
+          sha256sum "$RUNNER_TEMP/gki-published/Image" | tee "$evidence_dir/image.sha256"
+
+      - name: Upload compile-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android14-gki-compile-evidence
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/gki-published/Image
+            ${{ runner.temp }}/gki-evidence
