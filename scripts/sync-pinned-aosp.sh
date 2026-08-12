@@ -61,7 +61,8 @@ repo_root=$(dirname "$kernel_root")/.aosp-repo-client
   echo "repo client root must not already exist: $repo_root" >&2
   exit 73
 }
-git clone --filter=blob:none --no-checkout "$repo_tool_url" "$repo_root"
+# repo reuses its own checkout to bootstrap .repo/repo; it must be complete.
+git clone --no-checkout "$repo_tool_url" "$repo_root"
 git -C "$repo_root" checkout --detach "$repo_tool_commit"
 [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$repo_tool_commit" ]]
 
